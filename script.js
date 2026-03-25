@@ -1,42 +1,118 @@
-// Game Levels Definition
-const levels = [
-    {
-        // Level 1: The example from the prompt
-        // 10L bottle (starts full), 5L (empty), 2L (empty). Target: 1L in any bottle
-        target: 1,
-        bottles: [
-            { capacity: 10, initial: 10 },
-            { capacity: 5, initial: 0 },
-            { capacity: 2, initial: 0 }
-        ]
-    },
-    {
-        // Level 2: Classic Die Hard 3 puzzle
-        // 5L (empty), 3L (empty), but wait we need a source.
-        // Let's modify: 8L source (full), 5L (empty), 3L (empty). Target: 4L
-        target: 4,
-        bottles: [
-            { capacity: 8, initial: 8 },
-            { capacity: 5, initial: 0 },
-            { capacity: 3, initial: 0 }
-        ]
-    },
-    {
-        // Level 3: Harder
-        target: 6,
-        bottles: [
-            { capacity: 12, initial: 12 },
-            { capacity: 8, initial: 0 },
-            { capacity: 5, initial: 0 }
-        ]
-    }
-];
-
 // Game State
 let currentLevelIndex = 0;
 let bottlesState = [];
 let selectedBottleIndex = null;
 let isLevelComplete = false;
+let currentLevelData = null;
+let totalScore = 0;
+let currentMoves = 0;
+
+// Helper to calculate BFS for shortest path (minimum moves)
+function solvePuzzle(capacities, startState, target) {
+    const queue = [{ state: startState, path: [] }];
+    const visited = new Set();
+    visited.add(startState.join(','));
+
+    while (queue.length > 0) {
+        const { state, path } = queue.shift();
+
+        // Check win condition
+        if (state.includes(target)) {
+            return path.length;
+        }
+
+        // Generate next states
+        for (let i = 0; i < state.length; i++) {
+            for (let j = 0; j < state.length; j++) {
+                if (i !== j && state[i] > 0 && state[j] < capacities[j]) {
+                    const amount = Math.min(state[i], capacities[j] - state[j]);
+                    const nextState = [...state];
+                    nextState[i] -= amount;
+                    nextState[j] += amount;
+
+                    const stateStr = nextState.join(',');
+                    if (!visited.has(stateStr)) {
+                        visited.add(stateStr);
+                        queue.push({ state: nextState, path: [...path, { from: i, to: j }] });
+                    }
+                }
+            }
+        }
+    }
+    return -1; // No solution
+}
+
+// Generate a random solvable level
+function generateLevel(levelIndex) {
+    if (levelIndex === 0) {
+        // Level 1: Fixed specific example requested by user
+        return {
+            target: 1,
+            bottles: [
+                { capacity: 10, initial: 10 },
+                { capacity: 5, initial: 0 },
+                { capacity: 2, initial: 0 }
+            ],
+            minMoves: 3
+        };
+    }
+
+    // Number of bottles: 3 base + 1 for every 10 levels
+    const numBottles = 3 + Math.floor(levelIndex / 10);
+
+    // We loop until we find a puzzle that is solvable and requires some minimum number of moves
+    let attempts = 0;
+    while (attempts < 1000) {
+        attempts++;
+        const capacities = [];
+
+        // Randomly generate capacities
+        // Make the first bottle the largest and full
+        const maxCap = 10 + Math.floor(Math.random() * 20) + (levelIndex * 2);
+        capacities.push(maxCap);
+
+        for (let i = 1; i < numBottles; i++) {
+            // Smaller random capacities
+            let cap;
+            do {
+                cap = 2 + Math.floor(Math.random() * (maxCap - 3));
+            } while (capacities.includes(cap)); // Ensure distinct capacities for variety
+            capacities.push(cap);
+        }
+
+        // Initial state: first bottle full, rest empty
+        const startState = capacities.map((cap, i) => i === 0 ? cap : 0);
+
+        // Pick a random target between 1 and maxCap - 1
+        const target = 1 + Math.floor(Math.random() * (maxCap - 2));
+
+        const minMoves = solvePuzzle(capacities, startState, target);
+
+        // Ensure the puzzle is solvable and requires at least 2 moves
+        if (minMoves >= 2) {
+            return {
+                target: target,
+                bottles: capacities.map((cap, i) => ({
+                    capacity: cap,
+                    initial: startState[i]
+                })),
+                minMoves: minMoves
+            };
+        }
+    }
+
+    // Fallback if we fail to generate a puzzle (extremely unlikely)
+    console.error("Failed to generate a level, falling back to basic puzzle");
+    return {
+        target: 4,
+        bottles: [
+            { capacity: 8, initial: 8 },
+            { capacity: 5, initial: 0 },
+            { capacity: 3, initial: 0 }
+        ],
+        minMoves: 7
+    };
+}
 
 // DOM Elements
 const levelNumberEl = document.getElementById('level-number');
@@ -45,6 +121,9 @@ const bottlesContainer = document.getElementById('bottles-container');
 const restartBtn = document.getElementById('restart-level-btn');
 const nextBtn = document.getElementById('next-level-btn');
 const messageArea = document.getElementById('message-area');
+const totalScoreEl = document.getElementById('total-score');
+const currentMovesEl = document.getElementById('current-moves');
+const minMovesEl = document.getElementById('min-moves');
 
 // Constants for Visual Scaling
 // Let's say max capacity across all levels defines max height (e.g., 300px)
@@ -56,32 +135,41 @@ function initGame() {
     loadLevel(currentLevelIndex);
 
     restartBtn.addEventListener('click', () => {
-        loadLevel(currentLevelIndex);
+        // Reset the current level back to its initial state without regenerating a new puzzle
+        bottlesState = currentLevelData.bottles.map(b => ({ ...b, current: b.initial }));
+        selectedBottleIndex = null;
+        isLevelComplete = false;
+        currentMoves = 0;
+
+        currentMovesEl.textContent = currentMoves;
+        nextBtn.style.display = 'none';
         showMessage('');
+        renderBottles();
     });
 
     nextBtn.addEventListener('click', () => {
-        if (currentLevelIndex < levels.length - 1) {
-            currentLevelIndex++;
-            loadLevel(currentLevelIndex);
-        } else {
-            showMessage("Congratulations! You completed all levels!", "success-message");
-            nextBtn.style.display = 'none';
-        }
+        currentLevelIndex++;
+        loadLevel(currentLevelIndex);
     });
 }
 
 // Load a specific level
 function loadLevel(index) {
-    const levelData = levels[index];
+    currentLevelData = generateLevel(index);
     levelNumberEl.textContent = index + 1;
-    targetAmountEl.textContent = levelData.target;
+    targetAmountEl.textContent = currentLevelData.target;
 
     // Deep copy initial state
-    bottlesState = levelData.bottles.map(b => ({ ...b, current: b.initial }));
+    bottlesState = currentLevelData.bottles.map(b => ({ ...b, current: b.initial }));
 
     selectedBottleIndex = null;
     isLevelComplete = false;
+    currentMoves = 0;
+
+    // Update UI
+    currentMovesEl.textContent = currentMoves;
+    minMovesEl.textContent = currentLevelData.minMoves;
+    totalScoreEl.textContent = totalScore;
     nextBtn.style.display = 'none';
     showMessage('');
 
@@ -212,24 +300,33 @@ function pourLiquid(sourceIdx, destIdx) {
     source.current -= amountToTransfer;
     dest.current += amountToTransfer;
 
+    // Increment moves
+    currentMoves++;
+    currentMovesEl.textContent = currentMoves;
+
     showMessage(''); // Clear messages
 }
 
 // Check if the current level's target has been reached
 function checkWinCondition() {
-    const target = levels[currentLevelIndex].target;
+    const target = currentLevelData.target;
 
     // Check if any bottle contains exactly the target amount
     const won = bottlesState.some(bottle => bottle.current === target);
 
     if (won) {
         isLevelComplete = true;
-        showMessage(`Level ${currentLevelIndex + 1} Cleared!`, "success-message");
 
-        // Show next button if there are more levels
-        if (currentLevelIndex < levels.length - 1) {
-            nextBtn.style.display = 'inline-block';
-        }
+        // Calculate bonus
+        const extraMoves = Math.max(0, currentMoves - currentLevelData.minMoves);
+        let bonus = 1000 - (extraMoves * 100);
+        if (bonus < 0) bonus = 0;
+
+        totalScore += bonus;
+        totalScoreEl.textContent = totalScore;
+
+        showMessage(`Level ${currentLevelIndex + 1} Cleared! Bonus: ${bonus}`, "success-message");
+        nextBtn.style.display = 'inline-block';
     }
 }
 
