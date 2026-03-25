@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liquid Split Puzzle</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <h1>Liquid Split Puzzle</h1>
+        <div id="level-info">
+            <h2>Level: <span id="level-number">1</span></h2>
+            <p id="target-instruction">Target: Get <span id="target-amount">1</span>L in any bottle.</p>
+        </div>
+
+        <div id="bottles-container">
+            <!-- Bottles will be dynamically added here -->
+        </div>
+
+        <div id="controls">
+            <button id="restart-level-btn">Restart Level</button>
+            <button id="next-level-btn" style="display: none;">Next Level</button>
+        </div>
+
+        <div id="message-area"></div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
