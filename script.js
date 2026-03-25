@@ -6,9 +6,10 @@ let isLevelComplete = false;
 let currentLevelData = null;
 let totalScore = 0;
 let currentMoves = 0;
+let isAnimatingSolution = false;
 
-// Helper to calculate BFS for shortest path (minimum moves)
-function solvePuzzle(capacities, startState, target) {
+// Helper to calculate BFS for shortest path and return the exact path
+function solvePuzzlePath(capacities, startState, target) {
     const queue = [{ state: startState, path: [] }];
     const visited = new Set();
     visited.add(startState.join(','));
@@ -18,7 +19,7 @@ function solvePuzzle(capacities, startState, target) {
 
         // Check win condition
         if (state.includes(target)) {
-            return path.length;
+            return path;
         }
 
         // Generate next states
@@ -39,34 +40,23 @@ function solvePuzzle(capacities, startState, target) {
             }
         }
     }
-    return -1; // No solution
+    return null; // No solution
 }
 
-// Generate a random solvable level
+// Generate a random solvable level with an exact minimum number of moves
 function generateLevel(levelIndex) {
-    if (levelIndex === 0) {
-        // Level 1: Fixed specific example requested by user
-        return {
-            target: 1,
-            bottles: [
-                { capacity: 10, initial: 10 },
-                { capacity: 5, initial: 0 },
-                { capacity: 2, initial: 0 }
-            ],
-            minMoves: solvePuzzle([10, 5, 2], [10, 0, 0], 1)
-        };
-    }
+    // Required minimum moves scales linearly with level: Level 1 -> 3 moves, Level 2 -> 4 moves, etc.
+    const desiredMoves = levelIndex + 3;
 
     // Number of bottles: 3 base + 1 for every 10 levels
     const numBottles = 3 + Math.floor(levelIndex / 10);
 
-    // We loop until we find a puzzle that is solvable and requires some minimum number of moves
+    // Loop until we find a puzzle that exactly matches the desired moves
     let attempts = 0;
-    while (attempts < 1000) {
+    while (attempts < 2000) {
         attempts++;
         const capacities = [];
 
-        // Randomly generate capacities
         // Make the first bottle the largest and full
         const maxCap = 10 + Math.floor(Math.random() * 20) + (levelIndex * 2);
         capacities.push(maxCap);
@@ -74,35 +64,88 @@ function generateLevel(levelIndex) {
         for (let i = 1; i < numBottles; i++) {
             // Smaller random capacities
             let cap;
+            let innerAttempts = 0;
             do {
                 cap = 2 + Math.floor(Math.random() * (maxCap - 3));
-            } while (capacities.includes(cap)); // Ensure distinct capacities for variety
+                innerAttempts++;
+            } while (capacities.includes(cap) && innerAttempts < 100);
+            // Ensure distinct capacities for variety
             capacities.push(cap);
         }
 
         // Initial state: first bottle full, rest empty
         const startState = capacities.map((cap, i) => i === 0 ? cap : 0);
 
-        // Pick a random target between 1 and maxCap - 1
-        const target = 1 + Math.floor(Math.random() * (maxCap - 2));
+        // Do a full BFS from start state to find all possible reachable states and their shortest path lengths
+        const queue = [{ state: startState, depth: 0 }];
+        const visited = new Map(); // Map stateStr -> depth
+        visited.set(startState.join(','), 0);
 
-        const minMoves = solvePuzzle(capacities, startState, target);
+        let foundTargets = [];
 
-        // Ensure the puzzle is solvable and requires at least 2 moves
-        if (minMoves >= 2) {
-            return {
-                target: target,
-                bottles: capacities.map((cap, i) => ({
-                    capacity: cap,
-                    initial: startState[i]
-                })),
-                minMoves: minMoves
-            };
+        while (queue.length > 0) {
+            const { state, depth } = queue.shift();
+
+            // Collect any valid targets reached exactly at the desired depth
+            if (depth === desiredMoves) {
+                // Any non-zero amount in any bottle could be a target
+                for(let amount of state) {
+                    if (amount > 0 && amount < maxCap && !foundTargets.includes(amount)) {
+                         foundTargets.push(amount);
+                    }
+                }
+                continue; // No need to explore deeper from this node if we only care about exact depth
+            }
+
+            // We shouldn't explore past desired depth
+            if (depth > desiredMoves) continue;
+
+            // Generate next states
+            for (let i = 0; i < state.length; i++) {
+                for (let j = 0; j < state.length; j++) {
+                    if (i !== j && state[i] > 0 && state[j] < capacities[j]) {
+                        const amount = Math.min(state[i], capacities[j] - state[j]);
+                        const nextState = [...state];
+                        nextState[i] -= amount;
+                        nextState[j] += amount;
+
+                        const stateStr = nextState.join(',');
+                        // Only add if we haven't seen it, OR we found a shorter/equal path
+                        // Because BFS guarantees shortest path to first seen, we just check if it's completely unvisited
+                        if (!visited.has(stateStr)) {
+                            visited.set(stateStr, depth + 1);
+                            queue.push({ state: nextState, depth: depth + 1 });
+                        }
+                    }
+                }
+            }
+        }
+
+        // If we found states exactly at `desiredMoves` distance
+        if (foundTargets.length > 0) {
+            // Pick a random target from the valid ones
+            const target = foundTargets[Math.floor(Math.random() * foundTargets.length)];
+
+            // Double check it truly requires `desiredMoves` and there wasn't a shorter path to that SPECIFIC target amount
+            // Because our BFS above tracks exact exact state arrays, a target integer might appear in a DIFFERENT state at a shorter depth!
+            const verifyPath = solvePuzzlePath(capacities, startState, target);
+            if (verifyPath && verifyPath.length === desiredMoves) {
+                return {
+                    target: target,
+                    bottles: capacities.map((cap, i) => ({
+                        capacity: cap,
+                        initial: startState[i]
+                    })),
+                    minMoves: desiredMoves
+                };
+            }
         }
     }
 
-    // Fallback if we fail to generate a puzzle (extremely unlikely)
-    console.error("Failed to generate a level, falling back to basic puzzle");
+    // Fallback if we fail to generate a puzzle matching exactly desiredMoves
+    console.error("Failed to generate a level exactly matching requested moves, increasing difficulty slowly");
+
+    // At least ensure it's not totally broken
     return {
         target: 4,
         bottles: [
@@ -119,6 +162,7 @@ const levelNumberEl = document.getElementById('level-number');
 const targetAmountEl = document.getElementById('target-amount');
 const bottlesContainer = document.getElementById('bottles-container');
 const restartBtn = document.getElementById('restart-level-btn');
+const showSolutionBtn = document.getElementById('show-solution-btn');
 const nextBtn = document.getElementById('next-level-btn');
 const messageArea = document.getElementById('message-area');
 const totalScoreEl = document.getElementById('total-score');
@@ -135,8 +179,8 @@ function initGame() {
     loadLevel(currentLevelIndex);
 
     restartBtn.addEventListener('click', () => {
-        // Only allow restart if level is not complete to prevent score farming
-        if(isLevelComplete) return;
+        // Only allow restart if level is not complete to prevent score farming, and not animating
+        if(isLevelComplete || isAnimatingSolution) return;
         // Reset the current level back to its initial state without regenerating a new puzzle
         bottlesState = currentLevelData.bottles.map(b => ({ ...b, current: b.initial }));
         selectedBottleIndex = null;
@@ -152,6 +196,75 @@ function initGame() {
     nextBtn.addEventListener('click', () => {
         currentLevelIndex++;
         loadLevel(currentLevelIndex);
+    });
+
+    showSolutionBtn.addEventListener('click', () => {
+        if (isLevelComplete || isAnimatingSolution) return;
+
+        const confirmShow = confirm("Showing the solution will reset your progress and return you to Level 1 (or Level 10 if you are past it). Are you sure?");
+        if (!confirmShow) return;
+
+        showSolution();
+    });
+}
+
+function showSolution() {
+    isAnimatingSolution = true;
+
+    // Calculate solution path from CURRENT state
+    const capacities = currentLevelData.bottles.map(b => b.capacity);
+    const startState = bottlesState.map(b => b.current);
+    const target = currentLevelData.target;
+
+    const path = solvePuzzlePath(capacities, startState, target);
+
+    if (!path) {
+        showMessage("No solution found from current state!", "error-message");
+        isAnimatingSolution = false;
+        return;
+    }
+
+    let delay = 0;
+
+    // Clear selections
+    selectedBottleIndex = null;
+    renderBottles();
+
+    // Replay path
+    path.forEach((move, index) => {
+        setTimeout(() => {
+            // Select source
+            selectedBottleIndex = move.from;
+            renderBottles();
+
+            setTimeout(() => {
+                // Execute pour to dest
+                pourLiquid(move.from, move.to);
+                selectedBottleIndex = null;
+                renderBottles();
+
+                // If it's the last move, wait a bit then fallback
+                if (index === path.length - 1) {
+                    setTimeout(() => {
+                        isAnimatingSolution = false;
+                        showMessage("Solution Complete. Resetting game...", "success-message");
+                        setTimeout(() => {
+                            // Fallback logic
+                            if (currentLevelIndex >= 9) { // 0-indexed, so 9 is Level 10
+                                currentLevelIndex = 9;
+                            } else {
+                                currentLevelIndex = 0;
+                            }
+                            totalScore = 0; // Reset score
+                            loadLevel(currentLevelIndex);
+                        }, 2000);
+                    }, 1000);
+                }
+            }, 600); // Wait 600ms before second click
+
+        }, delay);
+
+        delay += 1200; // 1200ms per full move animation
     });
 }
 
@@ -250,7 +363,7 @@ function renderBottles() {
 
 // Handle clicking on a bottle
 function handleBottleClick(index) {
-    if (isLevelComplete) return;
+    if (isLevelComplete || isAnimatingSolution) return;
 
     if (selectedBottleIndex === null) {
         // First click: Select source bottle
