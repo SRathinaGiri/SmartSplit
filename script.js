@@ -53,7 +53,7 @@ function generateLevel(levelIndex) {
                 { capacity: 5, initial: 0 },
                 { capacity: 2, initial: 0 }
             ],
-            minMoves: 3
+            minMoves: solvePuzzle([10, 5, 2], [10, 0, 0], 1)
         };
     }
 
@@ -135,6 +135,8 @@ function initGame() {
     loadLevel(currentLevelIndex);
 
     restartBtn.addEventListener('click', () => {
+        // Only allow restart if level is not complete to prevent score farming
+        if(isLevelComplete) return;
         // Reset the current level back to its initial state without regenerating a new puzzle
         bottlesState = currentLevelData.bottles.map(b => ({ ...b, current: b.initial }));
         selectedBottleIndex = null;
@@ -193,8 +195,8 @@ function renderBottles() {
         const bottleEl = document.createElement('div');
         bottleEl.classList.add('bottle');
 
-        // Calculate height based on capacity
-        const bottleHeight = bottle.capacity * BASE_HEIGHT_PER_UNIT;
+        // Calculate height based on capacity, but cap it so it doesn't grow indefinitely on high levels
+        const bottleHeight = Math.min(bottle.capacity * BASE_HEIGHT_PER_UNIT, MAX_BOTTLE_HEIGHT);
         bottleEl.style.height = `${bottleHeight}px`;
         // Width can also scale slightly if we want, but fixed base width is fine for now
         // let's scale width slightly based on capacity
