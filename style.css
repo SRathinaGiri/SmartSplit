@@ -26,6 +26,12 @@ h1 {
     color: #3498db;
 }
 
+#score-info {
+    font-size: 1.5em;
+    color: #f1c40f;
+    margin-bottom: 10px;
+}
+
 #level-info {
     margin-bottom: 20px;
 }
@@ -36,6 +42,12 @@ h1 {
     color: #e74c3c;
 }
 
+#moves-info {
+    font-size: 1.1em;
+    color: #bdc3c7;
+    margin-top: 5px;
+}
+
 #bottles-container {
     display: flex;
     justify-content: center;
@@ -43,6 +55,7 @@ h1 {
     gap: 20px;
     margin: 40px 0;
     min-height: 300px;
+    flex-wrap: wrap;
 }
 
 /* Bottle Wrapper Styles to contain label outside hidden overflow */
