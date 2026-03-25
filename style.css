@@ -186,6 +186,13 @@ button:hover {
     background-color: #d35400;
 }
 
+#show-solution-btn {
+    background-color: #9b59b6;
+}
+#show-solution-btn:hover {
+    background-color: #8e44ad;
+}
+
 #message-area {
     margin-top: 20px;
     font-size: 1.2em;
