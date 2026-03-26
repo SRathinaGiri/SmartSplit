@@ -1,6 +1,6 @@
 # Liquid Split Puzzle
 
-![Gameplay Screenshot](/icon512.png)
+![Gameplay Screenshot](screenshot.png)
 
 An interactive, responsive HTML5 puzzle game where you split liquid between bottles to reach a specific target volume.
 
