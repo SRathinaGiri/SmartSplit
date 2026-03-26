@@ -1,6 +1,7 @@
 {
   "name": "Liquid Split Puzzle",
   "short_name": "LiquidSplit",
+  "version": "1.0.1",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#2c3e50",
