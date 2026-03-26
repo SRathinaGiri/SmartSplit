@@ -1,11 +1,11 @@
-const CACHE_NAME = 'liquid-split-v1.0.0';
+const CACHE_NAME = 'liquid-split-v1.0.1';
 const urlsToCache = [
-  '/',
-  '/index.html',
-  '/style.css',
-  '/script.js',
-  '/icon192.png',
-  '/icon512.png'
+  './',
+  './index.html',
+  './style.css',
+  './script.js',
+  './icon192.png',
+  './icon512.png'
 ];
 
 self.addEventListener('install', event => {
