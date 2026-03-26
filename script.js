@@ -4,9 +4,10 @@ let bottlesState = [];
 let selectedBottleIndex = null;
 let isLevelComplete = false;
 let currentLevelData = null;
-let totalScore = 0;
+let totalScore = parseInt(localStorage.getItem('liquidSplitScore')) || 0;
 let currentMoves = 0;
 let isAnimatingSolution = false;
+let deferredPrompt;
 
 // Helper to calculate BFS for shortest path and return the exact path
 function solvePuzzlePath(capacities, startState, target) {
@@ -168,6 +169,10 @@ const messageArea = document.getElementById('message-area');
 const totalScoreEl = document.getElementById('total-score');
 const currentMovesEl = document.getElementById('current-moves');
 const minMovesEl = document.getElementById('min-moves');
+const installBtn = document.getElementById('install-btn');
+const solutionContainer = document.getElementById('solution-container');
+const solutionTbody = document.getElementById('solution-tbody');
+const continueBtn = document.getElementById('continue-btn');
 
 // Constants for Visual Scaling
 // Let's say max capacity across all levels defines max height (e.g., 300px)
@@ -176,7 +181,32 @@ const BASE_HEIGHT_PER_UNIT = 20;
 
 // Initialize the game
 function initGame() {
+    // Load from local storage
+    const savedLevel = localStorage.getItem('liquidSplitLevel');
+    if (savedLevel !== null) {
+        currentLevelIndex = parseInt(savedLevel);
+    }
+
     loadLevel(currentLevelIndex);
+
+    // PWA Install Prompt Logic
+    window.addEventListener('beforeinstallprompt', (e) => {
+        // Prevent the mini-infobar from appearing on mobile
+        e.preventDefault();
+        deferredPrompt = e;
+        installBtn.style.display = 'block';
+    });
+
+    installBtn.addEventListener('click', async () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+                installBtn.style.display = 'none';
+            }
+            deferredPrompt = null;
+        }
+    });
 
     restartBtn.addEventListener('click', () => {
         // Only allow restart if level is not complete to prevent score farming, and not animating
@@ -206,6 +236,21 @@ function initGame() {
 
         showSolution();
     });
+
+    continueBtn.addEventListener('click', () => {
+        solutionContainer.style.display = 'none';
+        isAnimatingSolution = false;
+
+        // Fallback logic
+        if (currentLevelIndex >= 9) { // 0-indexed, so 9 is Level 10
+            currentLevelIndex = 9;
+        } else {
+            currentLevelIndex = 0;
+        }
+        totalScore = 0; // Reset score
+        localStorage.setItem('liquidSplitScore', totalScore);
+        loadLevel(currentLevelIndex);
+    });
 }
 
 function showSolution() {
@@ -230,9 +275,15 @@ function showSolution() {
     selectedBottleIndex = null;
     renderBottles();
 
+    solutionTbody.innerHTML = '';
+    solutionContainer.style.display = 'block';
+
     // Replay path
     path.forEach((move, index) => {
         setTimeout(() => {
+            // Log action to table BEFORE pour
+            const actionText = `Pour Bottle ${move.from + 1} (${capacities[move.from]}L) -> Bottle ${move.to + 1} (${capacities[move.to]}L)`;
+
             // Select source
             selectedBottleIndex = move.from;
             renderBottles();
@@ -243,28 +294,26 @@ function showSolution() {
                 selectedBottleIndex = null;
                 renderBottles();
 
-                // If it's the last move, wait a bit then fallback
+                // Add row to table
+                const tr = document.createElement('tr');
+                const stateStr = bottlesState.map(b => `${b.current}L`).join(', ');
+                tr.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${actionText}</td>
+                    <td>[${stateStr}]</td>
+                `;
+                solutionTbody.appendChild(tr);
+
+                // If it's the last move
                 if (index === path.length - 1) {
-                    setTimeout(() => {
-                        isAnimatingSolution = false;
-                        showMessage("Solution Complete. Resetting game...", "success-message");
-                        setTimeout(() => {
-                            // Fallback logic
-                            if (currentLevelIndex >= 9) { // 0-indexed, so 9 is Level 10
-                                currentLevelIndex = 9;
-                            } else {
-                                currentLevelIndex = 0;
-                            }
-                            totalScore = 0; // Reset score
-                            loadLevel(currentLevelIndex);
-                        }, 2000);
-                    }, 1000);
+                    showMessage("Solution Complete. Click Continue to reset.", "success-message");
+                    // Wait for user to click continueBtn
                 }
-            }, 600); // Wait 600ms before second click
+            }, 1000); // Wait 1s before second click (slowed down)
 
         }, delay);
 
-        delay += 1200; // 1200ms per full move animation
+        delay += 2500; // 2500ms per full move animation (slowed down)
     });
 }
 
@@ -286,7 +335,12 @@ function loadLevel(index) {
     minMovesEl.textContent = currentLevelData.minMoves;
     totalScoreEl.textContent = totalScore;
     nextBtn.style.display = 'none';
+    solutionContainer.style.display = 'none';
     showMessage('');
+
+    // Save to local storage
+    localStorage.setItem('liquidSplitLevel', index);
+    localStorage.setItem('liquidSplitScore', totalScore);
 
     renderBottles();
 }
@@ -439,6 +493,7 @@ function checkWinCondition() {
 
         totalScore += bonus;
         totalScoreEl.textContent = totalScore;
+        localStorage.setItem('liquidSplitScore', totalScore);
 
         showMessage(`Level ${currentLevelIndex + 1} Cleared! Bonus: ${bonus}`, "success-message");
         nextBtn.style.display = 'inline-block';
