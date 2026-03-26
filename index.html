@@ -5,10 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Liquid Split Puzzle</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
 </head>
 <body>
     <div id="game-container">
-        <h1>Liquid Split Puzzle</h1>
+        <div id="header-bar">
+            <h1>Liquid Split Puzzle</h1>
+            <button id="install-btn" style="display: none;">Install App</button>
+            <span id="version-indicator">v1.0.0</span>
+        </div>
 
         <div id="score-info">
             <h2>Score: <span id="total-score">0</span></h2>
@@ -31,7 +36,31 @@
         </div>
 
         <div id="message-area"></div>
+
+        <div id="solution-container" style="display: none;">
+            <h3>Solution Steps</h3>
+            <table id="solution-table">
+                <thead>
+                    <tr>
+                        <th>Step</th>
+                        <th>Action</th>
+                        <th>State After</th>
+                    </tr>
+                </thead>
+                <tbody id="solution-tbody">
+                </tbody>
+            </table>
+            <button id="continue-btn">Continue (Reset)</button>
+        </div>
     </div>
+
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/service-worker.js');
+        });
+      }
+    </script>
     <script src="script.js"></script>
 </body>
 </html>
